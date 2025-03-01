@@ -43,15 +43,32 @@ register_deactivation_hook(__FILE__, 'deactivate_document_classification_plugin'
  */
 function docclass_enqueue_scripts() {
     wp_enqueue_style('docclass-style', DOCCLASS_PLUGIN_URL . 'dist/index.css', array(), DOCCLASS_VERSION);
-    wp_enqueue_script('docclass-script', DOCCLASS_PLUGIN_URL . 'dist/index.js', array('jquery'), DOCCLASS_VERSION, true);
+    wp_enqueue_script('docclass-script', DOCCLASS_PLUGIN_URL . 'dist/index.js', array('jquery', 'wp-element'), DOCCLASS_VERSION, true);
     
     // Localize script with necessary data
     wp_localize_script('docclass-script', 'docClassData', array(
         'ajax_url' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('docclass-nonce'),
+        'plugin_url' => DOCCLASS_PLUGIN_URL,
     ));
 }
 add_action('wp_enqueue_scripts', 'docclass_enqueue_scripts');
+
+/**
+ * Enqueue admin scripts and styles.
+ */
+function docclass_admin_enqueue_scripts() {
+    wp_enqueue_style('docclass-admin-style', DOCCLASS_PLUGIN_URL . 'dist/admin.css', array(), DOCCLASS_VERSION);
+    wp_enqueue_script('docclass-admin-script', DOCCLASS_PLUGIN_URL . 'dist/admin.js', array('jquery', 'wp-element'), DOCCLASS_VERSION, true);
+    
+    // Localize script with necessary data
+    wp_localize_script('docclass-admin-script', 'docClassData', array(
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('docclass-nonce'),
+        'plugin_url' => DOCCLASS_PLUGIN_URL,
+    ));
+}
+add_action('admin_enqueue_scripts', 'docclass_admin_enqueue_scripts');
 
 /**
  * Register admin menu.
@@ -120,15 +137,28 @@ function docclass_results_page() {
 }
 
 /**
- * Register JetFormBuilder custom block
+ * Register JetFormBuilder integration
  */
-function docclass_register_blocks() {
+function docclass_jetformbuilder_integration() {
     if (function_exists('jet_form_builder')) {
-        // Register custom block for JetFormBuilder
-        // This would be implemented to connect with the React components
+        // Add custom field type to JetFormBuilder
+        add_filter('jet-form-builder/fields/register', function($fields) {
+            $fields['document_upload'] = [
+                'name'        => __('Document Upload & Classification', 'document-classification-plugin'),
+                'description' => __('Adds a document upload field with AI classification', 'document-classification-plugin'),
+                'render'      => function($template, $args, $instance) {
+                    $block_id = 'docclass-upload-' . uniqid();
+                    $accepted_types = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'];
+                    $max_size = 10;
+                    
+                    return '<div id="' . esc_attr($block_id) . '" class="docclass-document-upload" data-accepted-types="' . esc_attr(json_encode($accepted_types)) . '" data-max-size="' . esc_attr($max_size) . '"></div>';
+                },
+            ];
+            return $fields;
+        });
     }
 }
-add_action('init', 'docclass_register_blocks');
+add_action('init', 'docclass_jetformbuilder_integration');
 
 /**
  * AJAX handlers for the plugin
@@ -149,3 +179,4 @@ add_action('wp_ajax_nopriv_docclass_upload_document', 'docclass_handle_document_
 require_once DOCCLASS_PLUGIN_DIR . 'includes/class-document-type-manager.php';
 require_once DOCCLASS_PLUGIN_DIR . 'includes/class-training-document-manager.php';
 require_once DOCCLASS_PLUGIN_DIR . 'includes/class-classification-engine.php';
+require_once DOCCLASS_PLUGIN_DIR . 'includes/class-gutenberg-blocks.php';
